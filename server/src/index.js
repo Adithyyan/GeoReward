@@ -91,7 +91,7 @@ app.use((err, req, res, next) => {
 });
 
 // Start Express server
-if (!process.env.VERCEL && process.env.NODE_ENV !== 'test') {
+if (!process.env.VERCEL && !process.env.CLOUDFLARE_WORKER && process.env.NODE_ENV !== 'test') {
   app.listen(PORT, () => {
     console.log(`🚀 Refer & Win Server running on http://localhost:${PORT}`);
     console.log(`📡 Accepting client connections from: ${CLIENT_URL}`);

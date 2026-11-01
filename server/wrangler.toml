@@ -1,0 +1,8 @@
+name = "geo-reward-server"
+main = "worker.js"
+compatibility_date = "2026-08-04"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+CLOUDFLARE_WORKER = "true"
+CLIENT_URL = "https://geo-reward.vercel.app"
