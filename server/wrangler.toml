@@ -3,6 +3,9 @@ main = "worker.js"
 compatibility_date = "2026-08-04"
 compatibility_flags = ["nodejs_compat"]
 
+[alias]
+"iconv-lite" = "./src/shims/iconv-lite.cjs"
+
 [vars]
 CLOUDFLARE_WORKER = "true"
 CLIENT_URL = "https://geo-reward.vercel.app"
