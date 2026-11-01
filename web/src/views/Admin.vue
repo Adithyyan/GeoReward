@@ -271,8 +271,12 @@
               <!-- Card Body: Location Name, IP Address, Mobile & Accuracy -->
               <div class="space-y-1.5 text-xs pt-0.5">
                 <!-- Human-readable Place Name (e.g. Ottapalam, Thrissur) -->
-                <div v-if="item.location_name" class="flex items-center space-x-1.5 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-xl text-emerald-300">
-                  <MapPin class="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                <div
+                  v-if="item.location_name"
+                  class="flex items-center space-x-1.5 px-2.5 py-1 rounded-xl"
+                  :class="item.accuracy && item.accuracy <= 250 ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-300' : 'bg-amber-500/10 border border-amber-500/20 text-amber-300'"
+                >
+                  <MapPin class="w-3.5 h-3.5 flex-shrink-0" :class="item.accuracy && item.accuracy <= 250 ? 'text-emerald-400' : 'text-amber-400'" />
                   <span class="font-bold text-[11px] truncate">{{ item.location_name }}</span>
                 </div>
 
@@ -295,9 +299,11 @@
                   <div>
                     <span
                       v-if="item.accuracy"
-                      class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-300 border border-emerald-500/20"
+                      class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold"
+                      :class="item.accuracy <= 250 ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'"
                     >
-                      ±{{ Math.round(item.accuracy) }}m
+                      ±{{ item.accuracy > 1000 ? Math.round(item.accuracy / 1000) + 'km' : Math.round(item.accuracy) + 'm' }}
+                      <span class="ml-1 text-[9px] opacity-80">({{ item.accuracy <= 250 ? 'GPS' : 'IP' }})</span>
                     </span>
                     <span v-else class="text-[10px] text-slate-500">No Accuracy</span>
                   </div>
@@ -381,9 +387,11 @@
                     <td class="px-4 py-4 whitespace-nowrap">
                       <span
                         v-if="item.accuracy"
-                        class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-300 border border-emerald-500/20"
+                        class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold"
+                        :class="item.accuracy <= 250 ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'"
                       >
-                        ±{{ Math.round(item.accuracy) }}m
+                        ±{{ item.accuracy > 1000 ? Math.round(item.accuracy / 1000) + 'km' : Math.round(item.accuracy) + 'm' }}
+                        <span class="ml-1 text-[9px] opacity-80">({{ item.accuracy <= 250 ? 'GPS' : 'IP' }})</span>
                       </span>
                       <span v-else class="text-slate-500">N/A</span>
                     </td>
@@ -391,7 +399,11 @@
                     <!-- Action: View Location Button & Place Name -->
                     <td class="px-4 py-4 whitespace-nowrap text-right">
                       <div class="flex flex-col items-end space-y-1">
-                        <span v-if="item.location_name" class="font-bold text-emerald-400 text-xs flex items-center space-x-1">
+                        <span
+                          v-if="item.location_name"
+                          class="font-bold text-xs flex items-center space-x-1"
+                          :class="item.accuracy && item.accuracy <= 250 ? 'text-emerald-400' : 'text-amber-400'"
+                        >
                           <MapPin class="w-3 h-3 flex-shrink-0" />
                           <span class="truncate max-w-[190px]">{{ item.location_name }}</span>
                         </span>
