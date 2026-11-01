@@ -1,9 +1,9 @@
-import jwt from 'jsonwebtoken';
+import { verifyToken } from '../utils/jwt.js';
 
 /**
  * Middleware to verify JWT authentication token
  */
-export const authenticateToken = (req, res, next) => {
+export const authenticateToken = async (req, res, next) => {
   const authHeader = req.headers['authorization'];
   
   if (!authHeader) {
@@ -33,7 +33,7 @@ export const authenticateToken = (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, secret);
+    const decoded = await verifyToken(token, secret);
     req.user = decoded;
     next();
   } catch (error) {

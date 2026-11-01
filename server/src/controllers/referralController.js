@@ -183,11 +183,15 @@ export const getReferrals = async (req, res, next) => {
     const referrals = await getAllReferrals();
     return res.status(200).json({
       success: true,
-      count: referrals.length,
-      data: referrals,
+      count: referrals ? referrals.length : 0,
+      data: referrals || [],
     });
   } catch (error) {
-    next(error);
+    console.error('getReferrals error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to retrieve referrals.',
+    });
   }
 };
 

@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+import { signToken } from '../utils/jwt.js';
 import { findAdminByEmail, findAdminById } from '../models/adminModel.js';
 
 /**
@@ -44,16 +44,14 @@ export const login = async (req, res, next) => {
       });
     }
 
-    const expiresIn = process.env.JWT_ACCESS_EXPIRES_IN || '15m';
-
-    const token = jwt.sign(
+    const token = await signToken(
       {
         id: admin.id,
         email: admin.email,
         role: 'admin',
       },
       secret,
-      { expiresIn }
+      86400
     );
 
     return res.status(200).json({
