@@ -9,3 +9,6 @@ compatibility_flags = ["nodejs_compat"]
 [vars]
 CLOUDFLARE_WORKER = "true"
 CLIENT_URL = "https://geo-reward.vercel.app"
+DATABASE_URL = "postgresql://neondb_owner:npg_IbQnh1zcNU9t@ep-snowy-hat-b37sz10p-pooler.c-4.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+JWT_ACCESS_SECRET = "development_jwt_access_secret_super_secure_random_key_64_bytes_long_string"
+JWT_REFRESH_SECRET = "development_jwt_refresh_secret_super_secure_random_key_64_bytes_long_string"
