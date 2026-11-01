@@ -4,39 +4,40 @@ import { verifyToken } from '../utils/jwt.js';
  * Middleware to verify JWT authentication token
  */
 export const authenticateToken = async (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  
-  if (!authHeader) {
-    return res.status(401).json({
-      success: false,
-      message: 'Access denied. Authorization header missing.',
-    });
-  }
-
-  const parts = authHeader.split(' ');
-  if (parts.length !== 2 || parts[0] !== 'Bearer') {
-    return res.status(401).json({
-      success: false,
-      message: 'Malformed authorization header. Format must be "Bearer <token>".',
-    });
-  }
-
-  const token = parts[1];
-  const secret = process.env.JWT_ACCESS_SECRET;
-
-  if (!secret) {
-    console.error('JWT_ACCESS_SECRET is not configured.');
-    return res.status(500).json({
-      success: false,
-      message: 'Server error: JWT secret not set.',
-    });
-  }
-
   try {
+    const authHeader = req.headers['authorization'];
+    
+    if (!authHeader) {
+      return res.status(401).json({
+        success: false,
+        message: 'Access denied. Authorization header missing.',
+      });
+    }
+
+    const parts = authHeader.split(' ');
+    if (parts.length !== 2 || parts[0] !== 'Bearer') {
+      return res.status(401).json({
+        success: false,
+        message: 'Malformed authorization header. Format must be "Bearer <token>".',
+      });
+    }
+
+    const token = parts[1];
+    const secret = process.env.JWT_ACCESS_SECRET;
+
+    if (!secret) {
+      console.error('JWT_ACCESS_SECRET is not configured.');
+      return res.status(500).json({
+        success: false,
+        message: 'Server error: JWT secret not set.',
+      });
+    }
+
     const decoded = await verifyToken(token, secret);
     req.user = decoded;
     next();
   } catch (error) {
+    console.error('Auth verification error:', error.message);
     if (error.name === 'TokenExpiredError') {
       return res.status(401).json({
         success: false,

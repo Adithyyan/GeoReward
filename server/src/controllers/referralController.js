@@ -170,7 +170,11 @@ export const saveReferral = async (req, res, next) => {
       data: newReferral,
     });
   } catch (error) {
-    next(error);
+    console.error('saveReferral error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to submit referral. Please try again.',
+    });
   }
 };
 
