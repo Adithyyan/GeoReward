@@ -3,17 +3,22 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Load .env.local if available, otherwise fallback to .env (local dev only)
+if (typeof import.meta.url === 'string' && import.meta.url.startsWith('file:') && !process.env.CLOUDFLARE_WORKER && !process.env.VERCEL) {
+  try {
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    const envLocalPath = path.resolve(__dirname, '../.env.local');
+    const envPath = path.resolve(__dirname, '../.env');
 
-// Load .env.local if available, otherwise fallback to .env
-const envLocalPath = path.resolve(__dirname, '../.env.local');
-const envPath = path.resolve(__dirname, '../.env');
-
-if (fs.existsSync(envLocalPath)) {
-  dotenv.config({ path: envLocalPath });
-} else {
-  dotenv.config({ path: envPath });
+    if (fs.existsSync(envLocalPath)) {
+      dotenv.config({ path: envLocalPath });
+    } else if (fs.existsSync(envPath)) {
+      dotenv.config({ path: envPath });
+    }
+  } catch (e) {
+    // Platform provides process.env directly
+  }
 }
 
 import express from 'express';
