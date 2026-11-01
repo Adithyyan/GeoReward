@@ -15,7 +15,6 @@
     "@vueuse/motion": "^2.2.3",
     "axios": "^1.7.4",
     "lucide-vue-next": "^0.436.0",
-    "refer-and-win-monorepo": "file:..",
     "vue": "^3.4.38",
     "vue-router": "^4.4.3"
   },
