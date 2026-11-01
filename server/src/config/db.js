@@ -24,23 +24,37 @@ if (typeof import.meta.url === 'string' && import.meta.url.startsWith('file:') &
 
 const { Pool } = pg;
 
-// Neon PostgreSQL requires SSL connections
-const isNeonOrProduction = 
-  process.env.DATABASE_URL?.includes('neon.tech') || 
-  process.env.NODE_ENV === 'production' ||
-  process.env.DATABASE_URL?.includes('sslmode=require');
+let poolInstance = null;
 
-export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: isNeonOrProduction ? { rejectUnauthorized: false } : false,
-  max: 10,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 20000, // 20s allows Neon serverless compute to wake up from cold start
-});
+export const getPool = () => {
+  if (!poolInstance) {
+    if (!process.env.DATABASE_URL) {
+      throw new Error('DATABASE_URL environment variable is missing in Cloudflare Worker settings. Please add it under Settings -> Variables and Secrets.');
+    }
+    const isNeonOrProduction = 
+      process.env.DATABASE_URL.includes('neon.tech') || 
+      process.env.NODE_ENV === 'production' ||
+      process.env.DATABASE_URL.includes('sslmode=require');
 
-pool.on('error', (err) => {
-  console.error('Unexpected database pool error on idle client:', err);
-});
+    poolInstance = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: isNeonOrProduction ? { rejectUnauthorized: false } : false,
+      max: 10,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 20000, // 20s allows Neon serverless compute to wake up from cold start
+    });
+
+    poolInstance.on('error', (err) => {
+      console.error('Unexpected database pool error on idle client:', err);
+    });
+  }
+  return poolInstance;
+};
+
+export const pool = {
+  query: (...args) => getPool().query(...args),
+  on: (...args) => getPool().on(...args),
+};
 
 /**
  * Execute a parameterized SQL query with automatic retry for serverless wake-up
