@@ -58,8 +58,9 @@ if (process.env.NODE_ENV === 'development') {
   });
 }
 
-// Mount API routes under /api
+// Mount API routes under /api and root (supports both local server and Vercel serverless rewrites)
 app.use('/api', apiRoutes);
+app.use('/', apiRoutes);
 
 // Root informational endpoint
 app.get('/', (req, res) => {
