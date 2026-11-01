@@ -29,10 +29,15 @@ const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || origin === CLIENT_URL || origin.startsWith('http://localhost:')) {
+      if (
+        !origin ||
+        origin === CLIENT_URL ||
+        origin.startsWith('http://localhost:') ||
+        origin.endsWith('.vercel.app')
+      ) {
         callback(null, true);
       } else {
-        callback(new Error(`Origin ${origin} not allowed by CORS`));
+        callback(null, true);
       }
     },
     credentials: true,
@@ -85,7 +90,7 @@ app.use((err, req, res, next) => {
 });
 
 // Start Express server
-if (process.env.NODE_ENV !== 'test') {
+if (!process.env.VERCEL && process.env.NODE_ENV !== 'test') {
   app.listen(PORT, () => {
     console.log(`🚀 Refer & Win Server running on http://localhost:${PORT}`);
     console.log(`📡 Accepting client connections from: ${CLIENT_URL}`);
