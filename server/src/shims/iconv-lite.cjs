@@ -64,3 +64,4 @@ module.exports.getEncoder = getEncoder;
 module.exports.encodingExists = encodingExists;
 module.exports.decode = decode;
 module.exports.encode = encode;
+
